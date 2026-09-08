@@ -47,3 +47,6 @@ next-env.d.ts
 /.shots/
 /.test-fixtures/
 /.zcode/
+
+# WorkBuddy 工具目录（记忆/备份/本地配置）
+/.workbuddy/
