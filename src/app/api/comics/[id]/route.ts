@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createWriteStream } from "fs";
+import fs from "fs/promises";
+import path from "path";
+import { pipeline } from "stream/promises";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import {
+  MAX_COVER_BYTES,
   MAX_UPLOAD_BYTES,
   badRequest,
   fileOf,
@@ -12,13 +17,16 @@ import {
 } from "@/lib/api";
 import {
   IMAGE_EXTS,
+  ensureParentDir,
   extOf,
   randomName,
   removeDir,
   removeFile,
+  resolveSafe,
   saveBuffer,
+  saveToTempFile,
 } from "@/lib/storage";
-import { extractComicEntries } from "@/lib/comic";
+import { countComicPages, forEachComicPage } from "@/lib/comic";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -40,6 +48,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PUT(req: NextRequest, { params }: Params) {
   const session = await requireAdmin();
   if (!session) return jsonError("请先登录后台", 401);
+  let tmpZip: string | null = null;
   try {
     const comicId = toId((await params).id);
     if (!comicId) return jsonError("漫画不存在", 404);
@@ -63,37 +72,76 @@ export async function PUT(req: NextRequest, { params }: Params) {
       if (zipFile.size > MAX_UPLOAD_BYTES) {
         return badRequest("压缩包太大，上限 512MB");
       }
-      const buf = Buffer.from(await zipFile.arrayBuffer());
-      const entries = extractComicEntries(buf);
-      if (entries.length === 0) return badRequest("压缩包里没有找到图片");
+      tmpZip = await saveToTempFile(zipFile, "mybook-comic-");
+
+      let pageCount: number;
+      try {
+        pageCount = await countComicPages(tmpZip);
+      } catch {
+        return badRequest("压缩包已损坏或不是有效的 zip 文件");
+      }
+      if (pageCount === 0) return badRequest("压缩包里没有找到图片");
+
+      // 新页先流式解到暂存目录，全部成功才动旧数据；中途失败旧页原封不动
+      const staging = `comics/.staging-${comicId}-${Date.now()}`;
+      const rows: { comicId: number; pageIndex: number; path: string }[] = [];
+      try {
+        await forEachComicPage(tmpZip, async (i, name, stream) => {
+          const fileName = `${String(i + 1).padStart(4, "0")}${extOf(name)}`;
+          await pipeline(
+            stream,
+            createWriteStream(
+              await ensureParentDir(resolveSafe(`${staging}/${fileName}`))
+            )
+          );
+          rows.push({
+            comicId,
+            pageIndex: i,
+            path: `comics/${comicId}/${fileName}`,
+          });
+        });
+      } catch (err) {
+        await removeDir(staging);
+        throw err;
+      }
 
       await removeDir(`comics/${comicId}`);
-      await db.comicPage.deleteMany({ where: { comicId } });
-      let firstPage: string | null = null;
-      for (let i = 0; i < entries.length; i++) {
-        const rel = `comics/${comicId}/${String(i + 1).padStart(4, "0")}${extOf(entries[i].name)}`;
-        await saveBuffer(entries[i].data, rel);
-        if (i === 0) firstPage = rel;
-        await db.comicPage.create({
-          data: { comicId, pageIndex: i, path: rel },
-        });
+      await fs.rename(resolveSafe(staging), resolveSafe(`comics/${comicId}`));
+      try {
+        await db.$transaction([
+          db.comicPage.deleteMany({ where: { comicId } }),
+          db.comicPage.createMany({ data: rows }),
+        ]);
+      } catch (err) {
+        // 记录替换失败时清掉已换入的文件，避免出现无记录指向的孤儿页
+        await removeDir(`comics/${comicId}`);
+        throw err;
       }
+
       // 新图片解压后，旧封面若指向被删目录则回退为第一页
       if (comic.coverPath?.startsWith(`comics/${comicId}/`)) {
-        data.coverPath = firstPage;
+        data.coverPath = rows[0]?.path ?? null;
       }
     }
 
     const cover = fileOf(form, "cover");
-    if (cover && IMAGE_EXTS.includes(extOf(cover.name))) {
-      const coverPath = await saveBuffer(
-        Buffer.from(await cover.arrayBuffer()),
-        `comics/covers/${randomName(extOf(cover.name))}`
-      );
-      if (comic.coverPath && !comic.coverPath.startsWith(`comics/${comicId}/`)) {
-        await removeFile(comic.coverPath);
+    if (cover) {
+      if (cover.size > MAX_COVER_BYTES) {
+        return badRequest("封面图不能超过 20MB");
       }
-      data.coverPath = coverPath;
+      if (IMAGE_EXTS.includes(extOf(cover.name))) {
+        const coverPath = await saveBuffer(
+          Buffer.from(await cover.arrayBuffer()),
+          `comics/covers/${randomName(extOf(cover.name))}`
+        );
+        if (
+          comic.coverPath &&
+          !comic.coverPath.startsWith(`comics/${comicId}/`)
+        ) {
+          await removeFile(comic.coverPath);
+        }
+        data.coverPath = coverPath;
+      }
     }
 
     const updated = await db.comic.update({
@@ -104,6 +152,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json(updated);
   } catch (err) {
     return serverError(err);
+  } finally {
+    if (tmpZip) {
+      await fs
+        .rm(path.dirname(tmpZip), { recursive: true, force: true })
+        .catch(() => {});
+    }
   }
 }
 

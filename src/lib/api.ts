@@ -5,6 +5,9 @@ import { BOOK_EXTS, IMAGE_EXTS } from "./storage";
 /** 上传文件大小上限（小内存 VPS 友好） */
 export const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
+/** 封面图上限：封面只作展示，过大通常是选错了文件 */
+export const MAX_COVER_BYTES = 20 * 1024 * 1024;
+
 export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import {
+  MAX_COVER_BYTES,
   MAX_UPLOAD_BYTES,
   badRequest,
   fileOf,
@@ -38,6 +39,9 @@ export async function POST(req: NextRequest) {
     const format = ext.slice(1);
 
     const cover = fileOf(form, "cover");
+    if (cover && cover.size > MAX_COVER_BYTES) {
+      return badRequest("封面图不能超过 20MB");
+    }
 
     const book = await db.book.create({
       data: {

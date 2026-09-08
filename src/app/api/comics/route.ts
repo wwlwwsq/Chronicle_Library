@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createWriteStream } from "fs";
+import fs from "fs/promises";
+import path from "path";
+import { pipeline } from "stream/promises";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import {
+  MAX_COVER_BYTES,
   MAX_UPLOAD_BYTES,
   badRequest,
   fileOf,
@@ -9,8 +14,17 @@ import {
   serverError,
   str,
 } from "@/lib/api";
-import { IMAGE_EXTS, extOf, randomName, saveBuffer } from "@/lib/storage";
-import { extractComicEntries } from "@/lib/comic";
+import {
+  IMAGE_EXTS,
+  ensureParentDir,
+  extOf,
+  randomName,
+  removeDir,
+  resolveSafe,
+  saveBuffer,
+  saveToTempFile,
+} from "@/lib/storage";
+import { countComicPages, forEachComicPage } from "@/lib/comic";
 
 export async function GET() {
   try {
@@ -27,6 +41,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return jsonError("请先登录后台", 401);
+  let tmpZip: string | null = null;
   try {
     const form = await req.formData();
     const title = str(form, "title");
@@ -39,11 +54,24 @@ export async function POST(req: NextRequest) {
     if (zipFile.size > MAX_UPLOAD_BYTES) {
       return badRequest("压缩包太大，上限 512MB");
     }
+    const cover = fileOf(form, "cover");
+    if (cover && cover.size > MAX_COVER_BYTES) {
+      return badRequest("封面图不能超过 20MB");
+    }
 
-    const buf = Buffer.from(await zipFile.arrayBuffer());
-    const entries = extractComicEntries(buf);
-    if (entries.length === 0) {
-      return badRequest("压缩包里没有找到图片（支持 jpg/png/webp/gif/avif）");
+    // 上传流直落临时文件，全程不整包驻留内存；yauzl 按需解压
+    tmpZip = await saveToTempFile(zipFile, "mybook-comic-");
+
+    let pageCount: number;
+    try {
+      pageCount = await countComicPages(tmpZip);
+    } catch {
+      return badRequest("压缩包已损坏或不是有效的 zip 文件");
+    }
+    if (pageCount === 0) {
+      return badRequest(
+        "压缩包里没有找到图片（支持 jpg/png/webp/gif/avif/svg）"
+      );
     }
 
     const comic = await db.comic.create({
@@ -55,19 +83,25 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    let firstPage: string | null = null;
-    for (let i = 0; i < entries.length; i++) {
-      const ext = extOf(entries[i].name);
-      const rel = `comics/${comic.id}/${String(i + 1).padStart(4, "0")}${ext}`;
-      await saveBuffer(entries[i].data, rel);
-      if (i === 0) firstPage = rel;
-      await db.comicPage.create({
-        data: { comicId: comic.id, pageIndex: i, path: rel },
+    // 流式解包落盘 + 页记录批量插入：任一环节失败回滚文件与记录，不留半成品
+    const rows: { comicId: number; pageIndex: number; path: string }[] = [];
+    try {
+      await forEachComicPage(tmpZip, async (i, name, stream) => {
+        const rel = `comics/${comic.id}/${String(i + 1).padStart(4, "0")}${extOf(name)}`;
+        await pipeline(
+          stream,
+          createWriteStream(await ensureParentDir(resolveSafe(rel)))
+        );
+        rows.push({ comicId: comic.id, pageIndex: i, path: rel });
       });
+      await db.comicPage.createMany({ data: rows });
+    } catch (err) {
+      await removeDir(`comics/${comic.id}`);
+      await db.comic.delete({ where: { id: comic.id } }).catch(() => {});
+      throw err;
     }
 
-    let coverPath: string | null = firstPage;
-    const cover = fileOf(form, "cover");
+    let coverPath: string | null = rows[0]?.path ?? null;
     if (cover && IMAGE_EXTS.includes(extOf(cover.name))) {
       coverPath = await saveBuffer(
         Buffer.from(await cover.arrayBuffer()),
@@ -83,5 +117,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(updated, { status: 201 });
   } catch (err) {
     return serverError(err);
+  } finally {
+    if (tmpZip) {
+      await fs
+        .rm(path.dirname(tmpZip), { recursive: true, force: true })
+        .catch(() => {});
+    }
   }
 }
