@@ -14,6 +14,7 @@ const MIME: Record<string, string> = {
   ".webp": "image/webp",
   ".gif": "image/gif",
   ".avif": "image/avif",
+  ".svg": "image/svg+xml",
 };
 
 type Params = { params: Promise<{ path: string[] }> };
@@ -39,14 +40,22 @@ export async function GET(req: NextRequest, { params }: Params) {
     }
 
     const type = MIME[extOf(abs)] || "application/octet-stream";
+    const headers: Record<string, string> = {
+      "Content-Type": type,
+      "Content-Length": String(stat.size),
+      "Cache-Control": "no-cache",
+      ETag: etag,
+      "X-Content-Type-Options": "nosniff",
+    };
+    // SVG 可内嵌脚本：直接导航访问时脚本会在本站源上执行（存储型 XSS）。
+    // CSP 禁掉脚本但保留样式，<img> 引用与直接访问的渲染不受影响。
+    if (type === "image/svg+xml") {
+      headers["Content-Security-Policy"] =
+        "default-src 'none'; style-src 'unsafe-inline'";
+    }
     const nodeStream = createReadStream(abs);
     return new Response(Readable.toWeb(nodeStream) as ReadableStream, {
-      headers: {
-        "Content-Type": type,
-        "Content-Length": String(stat.size),
-        "Cache-Control": "no-cache",
-        ETag: etag,
-      },
+      headers,
     });
   } catch (err) {
     if (err instanceof Error && err.message === "非法路径") {
