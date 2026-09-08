@@ -1,7 +1,6 @@
 // 端到端验证脚本：登录 → 上传图书/漫画 → 发随笔 → 逐页检查（全程 UTF-8）
 import fs from "fs/promises";
 import path from "path";
-import AdmZip from "adm-zip";
 
 const BASE = process.env.BASE || "http://127.0.0.1:3000";
 const fixtures = path.join(process.cwd(), ".test-fixtures");
