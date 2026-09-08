@@ -27,6 +27,9 @@ model Book {
   filePath    String
   fileSize    Int      @default(0)
   createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([category, createdAt])
 }
 
 model Comic {
@@ -38,6 +41,9 @@ model Comic {
   coverPath   String?
   pages       ComicPage[]
   createdAt   DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([category, createdAt])
 }
 
 model Poem {
@@ -51,6 +57,8 @@ model Poem {
   posterPath String? // 海报图（预留位）
   comicPath  String? // 漫画图（预留位）
   createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model ComicPage {
@@ -73,6 +81,8 @@ model Post {
   published Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([published, createdAt])
 }
 
 model Game {
