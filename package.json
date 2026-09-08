@@ -1,0 +1,42 @@
+{
+  "name": "mybook-dw",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test:e2e": "node scripts/e2e-test.mjs",
+    "test:fixtures": "node scripts/gen-test-fixtures.mjs && node scripts/gen-test-epub.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "adm-zip": "^0.6.0",
+    "bcryptjs": "^3.0.3",
+    "epubjs": "^0.3.93",
+    "highlight.js": "^11.12.0",
+    "jose": "^6.2.12",
+    "jszip": "^3.10.1",
+    "next": "16.3.4",
+    "prisma": "^6.19.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/typography": "^0.5.20",
+    "@types/adm-zip": "^0.5.8",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,242 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* ============ 主题令牌 ============
+   语义色板通过 --ink/--paper/--lamp 等变量定义，
+   @theme inline 映射为 Tailwind 工具类（bg-ink、text-paper…），
+   切换 html[data-theme] 即可整站换肤。 */
+
+:root,
+[data-theme="night"] {
+  color-scheme: dark;
+  /* 深夜书房：墨蓝夜 + 台灯琥珀 + 暖纸白 */
+  --ink: #0c1521;
+  --ink-2: #131f2e;
+  --ink-3: #1b2a3d;
+  --line: #24384f;
+  --paper: #ece5d4;
+  --fog: #8fa3b8;
+  --lamp: #e6a944;
+  --lamp-2: #f2c179;
+  --moss: #7fae8e;
+  --on-accent: #1b1503;
+  --reader-bg: #101b29;
+  --reader-text: #ccd6e0;
+  --prose-body: #cfd8df;
+  --prose-pre-bg: #0a1119;
+  --glow-a: rgba(230, 169, 68, 0.16);
+  --glow-b: rgba(230, 169, 68, 0.08);
+}
+
+[data-theme="day"] {
+  color-scheme: light;
+  /* 暖纸日光：米纸 + 浓墨 + 朱砂 */
+  --ink: #f4eee1;
+  --ink-2: #faf6ec;
+  --ink-3: #e9e1cd;
+  --line: #d8ccb4;
+  --paper: #332a1e;
+  --fog: #8a7a63;
+  --lamp: #b5432a;
+  --lamp-2: #93331f;
+  --moss: #5d7f5b;
+  --on-accent: #fdf6ea;
+  --reader-bg: #fbf7ed;
+  --reader-text: #3a3226;
+  --prose-body: #43392b;
+  --prose-pre-bg: #2e2921;
+  --glow-a: rgba(181, 67, 42, 0.1);
+  --glow-b: rgba(181, 67, 42, 0.05);
+}
+
+[data-theme="ink-wash"] {
+  color-scheme: light;
+  /* 水墨宣纸：冷白宣纸 + 焦墨 + 黛青 */
+  --ink: #edece7;
+  --ink-2: #f6f5f1;
+  --ink-3: #e0ded4;
+  --line: #c9c7bd;
+  --paper: #1d1d1b;
+  --fog: #6e6c64;
+  --lamp: #3e5c73;
+  --lamp-2: #2c4457;
+  --moss: #66805f;
+  --on-accent: #f2f1ea;
+  --reader-bg: #f3f2ec;
+  --reader-text: #2c2c29;
+  --prose-body: #33332f;
+  --prose-pre-bg: #1d1d1b;
+  --glow-a: rgba(62, 92, 115, 0.1);
+  --glow-b: rgba(62, 92, 115, 0.05);
+}
+
+[data-theme="forest"] {
+  color-scheme: dark;
+  /* 松间萤火：苔绿夜 + 萤火黄绿 */
+  --ink: #0e1913;
+  --ink-2: #152218;
+  --ink-3: #1d2f22;
+  --line: #2b4232;
+  --paper: #e4e9d8;
+  --fog: #8fa58f;
+  --lamp: #a9c76b;
+  --lamp-2: #c4de8f;
+  --moss: #7fae8e;
+  --on-accent: #15220e;
+  --reader-bg: #121e16;
+  --reader-text: #c3cfbd;
+  --prose-body: #c8d2c0;
+  --prose-pre-bg: #0b130e;
+  --glow-a: rgba(169, 199, 107, 0.12);
+  --glow-b: rgba(169, 199, 107, 0.06);
+}
+
+[data-theme="terminal"] {
+  color-scheme: dark;
+  /* 苍绿终端：近黑底 + 磷光绿 */
+  --ink: #090e0b;
+  --ink-2: #0f1712;
+  --ink-3: #16241b;
+  --line: #22392b;
+  --paper: #c2ecd0;
+  --fog: #5f8a6d;
+  --lamp: #3fd97e;
+  --lamp-2: #8ef2b2;
+  --moss: #43c98a;
+  --on-accent: #04170c;
+  --reader-bg: #0c130e;
+  --reader-text: #a8d8b6;
+  --prose-body: #b2d8bd;
+  --prose-pre-bg: #060a08;
+  --glow-a: rgba(63, 217, 126, 0.12);
+  --glow-b: rgba(63, 217, 126, 0.06);
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-paper: var(--paper);
+  --color-fog: var(--fog);
+  --color-lamp: var(--lamp);
+  --color-lamp-2: var(--lamp-2);
+  --color-moss: var(--moss);
+  --color-on-accent: var(--on-accent);
+  --color-reader-bg: var(--reader-bg);
+  --color-reader-text: var(--reader-text);
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Helvetica Neue", Arial,
+    sans-serif;
+  --font-serif:
+    Georgia, "Times New Roman", "Noto Serif SC", "Source Han Serif SC",
+    "思源宋体", "Songti SC", "STSong", "SimSun", serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--lamp) 35%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--lamp);
+  outline-offset: 2px;
+}
+
+/* 台灯光晕：页面顶部一束暖光（随主题变化） */
+.lamp-glow {
+  background:
+    radial-gradient(ellipse 70% 46% at 50% -8%, var(--glow-a), transparent 62%),
+    radial-gradient(ellipse 32% 22% at 72% -2%, var(--glow-b), transparent 70%);
+}
+
+/* 精细分割线（发丝线） */
+.hairline {
+  border-color: color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+/* 书脊：竖排文字 */
+.spine-text {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+
+/* 漫画阅读器隐藏滚动条但保留滚动 */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 文章排版：在 typography 基础上贴合主题 */
+.prose-lamp {
+  --tw-prose-body: var(--prose-body);
+  --tw-prose-headings: var(--paper);
+  --tw-prose-lead: var(--fog);
+  --tw-prose-links: var(--lamp-2);
+  --tw-prose-bold: var(--paper);
+  --tw-prose-counters: var(--fog);
+  --tw-prose-bullets: var(--lamp);
+  --tw-prose-hr: var(--line);
+  --tw-prose-quotes: var(--paper);
+  --tw-prose-quote-borders: var(--lamp);
+  --tw-prose-captions: var(--fog);
+  --tw-prose-code: var(--lamp-2);
+  --tw-prose-pre-code: var(--reader-text);
+  --tw-prose-pre-bg: var(--prose-pre-bg);
+  --tw-prose-th-borders: var(--line);
+  --tw-prose-td-borders: var(--line);
+}
+.prose-lamp :is(h1, h2, h3, h4) {
+  font-family: var(--font-serif);
+}
+.prose-lamp blockquote {
+  font-style: normal;
+}
+.prose-lamp code::before,
+.prose-lamp code::after {
+  content: none;
+}
+.prose-lamp code {
+  background: color-mix(in srgb, var(--lamp) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lamp) 20%, transparent);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-weight: 400;
+}
+.prose-lamp pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* 记忆翻牌的翻转 */
+.flip-card {
+  transform-style: preserve-3d;
+  transition: transform 0.4s ease;
+}
+.flip-card.flipped {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  backface-visibility: hidden;
+}
+.flip-back {
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .flip-card {
+    transition: none;
+  }
+}

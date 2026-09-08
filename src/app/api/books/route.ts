@@ -1,0 +1,72 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import {
+  MAX_UPLOAD_BYTES,
+  badRequest,
+  fileOf,
+  jsonError,
+  serverError,
+  str,
+} from "@/lib/api";
+import { BOOK_EXTS, extOf, randomName, saveBuffer } from "@/lib/storage";
+
+export async function GET() {
+  try {
+    const books = await db.book.findMany({ orderBy: { createdAt: "desc" } });
+    return NextResponse.json(books);
+  } catch (err) {
+    return serverError(err);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const session = await requireAdmin();
+  if (!session) return jsonError("请先登录后台", 401);
+  try {
+    const form = await req.formData();
+    const title = str(form, "title");
+    const file = fileOf(form, "file");
+    if (!title) return badRequest("书名不能为空");
+    if (!file) return badRequest("请选择书籍文件（.epub 或 .txt）");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return badRequest("文件太大，单个文件上限 512MB");
+    }
+
+    const ext = extOf(file.name);
+    if (!BOOK_EXTS.includes(ext)) return badRequest("仅支持 .epub 或 .txt 文件");
+    const format = ext.slice(1);
+
+    const buf = Buffer.from(await file.arrayBuffer());
+    const cover = fileOf(form, "cover");
+
+    const book = await db.book.create({
+      data: {
+        title,
+        author: str(form, "author"),
+        description: str(form, "description"),
+        category: str(form, "category", "未分类"),
+        format,
+        filePath: "",
+        fileSize: buf.length,
+      },
+    });
+
+    const filePath = await saveBuffer(buf, `books/${book.id}-${randomName(ext)}`);
+    let coverPath: string | null = null;
+    if (cover && cover.type.startsWith("image/")) {
+      coverPath = await saveBuffer(
+        Buffer.from(await cover.arrayBuffer()),
+        `books/covers/${randomName(extOf(cover.name))}`
+      );
+    }
+
+    const updated = await db.book.update({
+      where: { id: book.id },
+      data: { filePath, coverPath },
+    });
+    return NextResponse.json(updated, { status: 201 });
+  } catch (err) {
+    return serverError(err);
+  }
+}

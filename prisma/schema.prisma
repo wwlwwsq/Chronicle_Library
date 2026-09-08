@@ -1,0 +1,75 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Book {
+  id          Int      @id @default(autoincrement())
+  title       String
+  author      String   @default("")
+  description String   @default("")
+  category    String   @default("未分类")
+  format      String   @default("epub") // epub | txt
+  coverPath   String?
+  filePath    String
+  fileSize    Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Comic {
+  id          Int         @id @default(autoincrement())
+  title       String
+  author      String      @default("")
+  description String      @default("")
+  category    String      @default("未分类")
+  coverPath   String?
+  pages       ComicPage[]
+  createdAt   DateTime    @default(now())
+}
+
+model ComicPage {
+  id        Int    @id @default(autoincrement())
+  comicId   Int
+  pageIndex Int
+  path      String
+  comic     Comic  @relation(fields: [comicId], references: [id], onDelete: Cascade)
+
+  @@index([comicId])
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  title     String
+  slug      String   @unique
+  summary   String   @default("")
+  content   String
+  tags      String   @default("") // 逗号分隔
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Game {
+  id          Int      @id @default(autoincrement())
+  title       String
+  slug        String   @unique // 内置游戏固定 slug；外部游戏随机生成
+  description String   @default("")
+  url         String? // 外部游戏地址
+  builtin     Boolean  @default(false)
+  icon        String   @default("🎮")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}

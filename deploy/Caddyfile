@@ -1,0 +1,11 @@
+# 把 example.com 换成你的域名，放到服务器后 `docker compose up -d` 即可自动签发 HTTPS 证书
+example.com {
+	encode gzip
+
+	reverse_proxy mybook:3000
+
+	# 允许上传较大的书籍 / 漫画压缩包（应用自身限制单文件 512MB）
+	request_body {
+		max_size 512MB
+	}
+}

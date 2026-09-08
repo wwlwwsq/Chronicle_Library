@@ -1,0 +1,9 @@
+node_modules
+.next
+data
+.env
+.git
+*.md
+docker-compose.yml
+README.md
+.DS_Store

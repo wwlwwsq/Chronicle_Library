@@ -1,0 +1,38 @@
+services:
+  mybook:
+    build: .
+    container_name: mybook
+    restart: unless-stopped
+    ports:
+      # 本机如需换端口，在 .env 里设 WEB_PORT=3100 之类的值即可
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/app.db
+      - UPLOAD_DIR=/app/data/uploads
+      # 生产环境务必改成足够长的随机字符串
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-long-random-string}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      # 走 HTTPS 反代时改为 true，登录 Cookie 才会带 Secure 标记
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+    volumes:
+      - ./data:/app/data
+
+  # 可选：Caddy 反向代理，自动签发 HTTPS 证书
+  # 需要服务器 80/443 端口可用、域名已解析到本机；修改 deploy/Caddyfile 里的域名后取消下面的注释
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: mybook-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #
+  # volumes:
+  #   caddy_data:
+  #   caddy_config:
