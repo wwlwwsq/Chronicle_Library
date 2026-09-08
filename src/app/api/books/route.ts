@@ -9,7 +9,7 @@ import {
   serverError,
   str,
 } from "@/lib/api";
-import { BOOK_EXTS, extOf, randomName, saveBuffer } from "@/lib/storage";
+import { BOOK_EXTS, extOf, randomName, saveWebFile } from "@/lib/storage";
 
 export async function GET() {
   try {
@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     if (!BOOK_EXTS.includes(ext)) return badRequest("仅支持 .epub 或 .txt 文件");
     const format = ext.slice(1);
 
-    const buf = Buffer.from(await file.arrayBuffer());
     const cover = fileOf(form, "cover");
 
     const book = await db.book.create({
@@ -48,15 +47,23 @@ export async function POST(req: NextRequest) {
         category: str(form, "category", "未分类"),
         format,
         filePath: "",
-        fileSize: buf.length,
+        fileSize: file.size,
       },
     });
 
-    const filePath = await saveBuffer(buf, `books/${book.id}-${randomName(ext)}`);
+    // 流式写盘：512MB 的书不再整体驻留内存；写盘失败回滚 DB 记录
+    let filePath: string;
+    try {
+      filePath = await saveWebFile(file, `books/${book.id}-${randomName(ext)}`);
+    } catch (err) {
+      await db.book.delete({ where: { id: book.id } }).catch(() => {});
+      throw err;
+    }
+
     let coverPath: string | null = null;
     if (cover && cover.type.startsWith("image/")) {
-      coverPath = await saveBuffer(
-        Buffer.from(await cover.arrayBuffer()),
+      coverPath = await saveWebFile(
+        cover,
         `books/covers/${randomName(extOf(cover.name))}`
       );
     }

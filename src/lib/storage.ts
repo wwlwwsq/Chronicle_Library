@@ -1,6 +1,9 @@
 import path from "path";
 import fs from "fs/promises";
 import crypto from "crypto";
+import { Readable } from "stream";
+import { createWriteStream } from "fs";
+import { pipeline } from "stream/promises";
 
 /** 上传文件根目录：Docker 中挂载为 /app/data/uploads */
 export const UPLOAD_DIR = process.env.UPLOAD_DIR
@@ -42,6 +45,27 @@ export async function saveBuffer(buf: Buffer, relPath: string) {
   const abs = resolveSafe(relPath);
   await fs.mkdir(path.dirname(abs), { recursive: true });
   await fs.writeFile(abs, buf);
+  return toRel(relPath);
+}
+
+/**
+ * 流式写盘：FormData 的 File（最大 512MB）边收边写，不整体驻留内存。
+ * 写入失败时删除半成品，避免留下指向残缺文件的记录。
+ */
+export async function saveWebFile(file: File, relPath: string) {
+  const abs = resolveSafe(relPath);
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  const nodeReadable = Readable.fromWeb(
+    file.stream() as unknown as import("stream/web").ReadableStream
+  );
+  try {
+    await pipeline(nodeReadable, createWriteStream(abs));
+  } catch (err) {
+    try {
+      await fs.unlink(abs);
+    } catch {}
+    throw err;
+  }
   return toRel(relPath);
 }
 

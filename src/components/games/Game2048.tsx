@@ -92,14 +92,17 @@ export default function Game2048() {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   // 键盘/触摸快速连按时的最新棋盘（保证移动计算不基于过期状态）
   const cellsRef = useRef(cells);
+  // eslint-disable-next-line react-hooks/refs -- 渲染期同步 ref 与 state，保证快速连按读到的棋盘不过期（事件处理器读取）
   cellsRef.current = cells;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时从 localStorage 恢复最高分，SSR 无该 API
     setBest(Number(localStorage.getItem(BEST_KEY) || "0"));
   }, []);
 
   // 分数超过纪录时更新最高分
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 由 score 变化派生 best，属 React 认可的“状态调整”模式
     setBest((b) => {
       if (score > b) {
         localStorage.setItem(BEST_KEY, String(score));

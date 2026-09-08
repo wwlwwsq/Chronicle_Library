@@ -21,15 +21,18 @@ export default function SnakeGame() {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
 
+  // eslint-disable-next-line react-hooks/refs -- 渲染期同步 ref 与 state，游戏循环（定时器闭包）需读取最新状态
   stateRef.current = state;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时从 localStorage 恢复最高分，SSR 无该 API
     setBest(Number(localStorage.getItem(BEST_KEY) || "0"));
   }, []);
 
   // 游戏结束时刷新最高分
   useEffect(() => {
     if (state !== "over") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 由 score/state 变化派生 best，属 React 认可的“状态调整”模式
     setBest((b) => {
       if (score > b) {
         localStorage.setItem(BEST_KEY, String(score));

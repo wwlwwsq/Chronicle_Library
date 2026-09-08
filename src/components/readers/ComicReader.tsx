@@ -24,7 +24,9 @@ export default function ComicReader({
 
   // 初始化：恢复阅读模式与进度
   useEffect(() => {
+    // localStorage 仅客户端存在，SSR 无法在 useState 初始化器中读取，只能挂载后恢复
     const savedMode = localStorage.getItem(modeKey);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时从 localStorage 恢复阅读模式
     if (savedMode === "page" || savedMode === "scroll") setMode(savedMode);
     const saved = Number(localStorage.getItem(progressKey));
     if (Number.isFinite(saved) && saved > 0 && saved < pages.length) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 export const THEMES = [
   { id: "night", name: "深夜书房", dots: ["#0c1521", "#e6a944", "#ece5d4"] },
@@ -10,14 +10,23 @@ export const THEMES = [
   { id: "terminal", name: "苍绿终端", dots: ["#090e0b", "#3fd97e", "#c2ecd0"] },
 ];
 
+const THEME_CHANGE_EVENT = "mbw:themechange";
+
+/** data-theme 属性是真正的“外部 store”：用 useSyncExternalStore 订阅，
+ *  取代「挂载时 setState 同步 DOM」的反模式（也消除水合期的一次错位渲染） */
+function subscribe(onChange: () => void) {
+  window.addEventListener(THEME_CHANGE_EVENT, onChange);
+  return () => window.removeEventListener(THEME_CHANGE_EVENT, onChange);
+}
+
 export default function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState("night");
+  const current = useSyncExternalStore(
+    subscribe,
+    () => document.documentElement.getAttribute("data-theme") || "night",
+    () => "night" // SSR 快照：layout 用 cookie 渲染主题，此处仅为水合占位
+  );
   const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setCurrent(document.documentElement.getAttribute("data-theme") || "night");
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -28,16 +37,16 @@ export default function ThemeSwitcher({ compact = false }: { compact?: boolean }
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  const pick = (id: string) => {
+  const pick = useCallback((id: string) => {
     document.documentElement.setAttribute("data-theme", id);
     // 写 cookie 供服务端渲染下次直接出正确主题；localStorage 只做本页即时备份
     document.cookie = `mbw:theme=${id}; path=/; max-age=31536000; samesite=lax`;
     try {
       localStorage.setItem("mbw:theme", id);
     } catch {}
-    setCurrent(id);
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
     setOpen(false);
-  };
+  }, []);
 
   const active = THEMES.find((t) => t.id === current) || THEMES[0];
 

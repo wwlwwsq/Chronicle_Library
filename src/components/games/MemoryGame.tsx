@@ -13,7 +13,7 @@ function deal(): Card[] {
     .map((emoji, i) => ({ id: i, emoji, flipped: false, matched: false }))
     .map((c) => ({ ...c, sort: Math.random() }))
     .sort((a, b) => a.sort - b.sort)
-    .map(({ id, emoji }, i) => ({ id: i + 100, emoji, flipped: false, matched: false }));
+    .map(({ emoji }, i) => ({ id: i + 100, emoji, flipped: false, matched: false }));
   return cards;
 }
 
@@ -29,6 +29,7 @@ export default function MemoryGame() {
   const matchedAll = cards.length > 0 && cards.every((c) => c.matched);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时从 localStorage 恢复最高纪录，SSR 无该 API
     setBest(Number(localStorage.getItem(BEST_KEY)) || null);
   }, []);
 
@@ -54,6 +55,7 @@ export default function MemoryGame() {
     if (lock) return;
     const card = cards[idx];
     if (card.flipped || card.matched) return;
+    // eslint-disable-next-line react-hooks/purity -- flip 是点击事件处理器而非渲染期调用，读取时钟无纯度问题
     if (startedAt === null) setStartedAt(Date.now());
 
     const next = cards.map((c, i) => (i === idx ? { ...c, flipped: true } : c));

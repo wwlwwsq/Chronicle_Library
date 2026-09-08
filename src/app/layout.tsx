@@ -22,6 +22,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="zh-CN"
       data-theme={safeTheme}
+      data-scroll-behavior="smooth"
       className="h-full antialiased"
       suppressHydrationWarning
     >

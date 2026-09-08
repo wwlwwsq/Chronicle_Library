@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { db } from "./db";
 import bcrypt from "bcryptjs";
 import { ensureUploadDirs } from "./storage";
+import { isDefaultJwtSecret } from "./jwt";
 
 const BUILTIN_GAMES = [
   {
@@ -89,6 +90,21 @@ let bootstrapped = false;
 export async function bootstrap() {
   if (bootstrapped) return;
   bootstrapped = true;
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    isDefaultJwtSecret(process.env.JWT_SECRET)
+  ) {
+    console.warn(
+      "\n" +
+        "════════════════════════════════════════════════════════════\n" +
+        "  ⚠️  安全警告：生产环境正在使用默认 JWT_SECRET！\n" +
+        "  任何人都可以伪造管理员登录态。请在 .env 或 docker-compose\n" +
+        "  中设置足够长的随机字符串，然后重启服务：\n" +
+        "      JWT_SECRET=$(node -e \"console.log(crypto.randomBytes(32).toString('hex'))\")\n" +
+        "════════════════════════════════════════════════════════════\n"
+    );
+  }
 
   await ensureSchema();
   await ensureUploadDirs();

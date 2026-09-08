@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type TocItem = { label: string; href: string; depth: number; spineIndex: number };
+/** epub.js navigation.toc 的最小结构（库自带类型不完整，只取用到字段） */
+type RawTocItem = { label?: string; href?: string; subitems?: RawTocItem[] };
 
 /**
  * 目录树扁平化：很多 EPUB（如 epubBuilder/calibre 制作）把章节挂在
@@ -11,11 +13,11 @@ type TocItem = { label: string; href: string; depth: number; spineIndex: number 
  * 这里递归展开所有层级，depth 用于渲染缩进。
  * spineIndex 先置 -1，加载目录后由 spine 预解析回填。
  */
-function flattenToc(items: any[] | undefined, depth = 0): TocItem[] {
+function flattenToc(items: RawTocItem[] | undefined, depth = 0): TocItem[] {
   return (items || []).flatMap((t) => [
     {
       label: t.label?.trim() || "未命名章节",
-      href: t.href,
+      href: t.href ?? "",
       depth,
       spineIndex: -1,
     },
@@ -55,6 +57,8 @@ export default function EpubReader({
   const storageKey = `mbw:book:${bookId}`;
 
   useEffect(() => {
+    // localStorage 仅客户端存在，SSR 无法在 useState 初始化器中读取，只能挂载后恢复
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时从 localStorage 恢复阅读偏好，SSR 无该 API
     if (localStorage.getItem(MODE_KEY) === "scroll") setMode("scroll");
   }, []);
 

@@ -34,6 +34,8 @@ export default function AdminGames() {
   };
 
   useEffect(() => {
+    // 挂载拉取列表：fetch→setState 既有模式，RSC 化列为后续重构项
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载取数场景，规则建议的 RSC 改造属后续重构
     load();
   }, []);
 
