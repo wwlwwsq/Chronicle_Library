@@ -19,7 +19,15 @@ export function toRel(p: string) {
 }
 
 export async function ensureUploadDirs() {
-  for (const dir of ["", "books", "books/covers", "comics", "comics/covers"]) {
+  for (const dir of [
+    "",
+    "books",
+    "books/covers",
+    "comics",
+    "comics/covers",
+    "poems/posters",
+    "poems/comics",
+  ]) {
     await fs.mkdir(path.join(UPLOAD_DIR, dir), { recursive: true });
   }
 }

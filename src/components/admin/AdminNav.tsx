@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/admin", label: "仪表盘", icon: "🕯️" },
   { href: "/admin/books", label: "图书", icon: "📚" },
   { href: "/admin/comics", label: "漫画", icon: "🎨" },
+  { href: "/admin/poems", label: "诗词", icon: "📜" },
   { href: "/admin/posts", label: "随笔", icon: "✍️" },
   { href: "/admin/games", label: "游戏", icon: "🎮" },
   { href: "/admin/settings", label: "设置", icon: "⚙️" },

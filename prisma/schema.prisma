@@ -40,6 +40,19 @@ model Comic {
   createdAt   DateTime    @default(now())
 }
 
+model Poem {
+  id         Int      @id @default(autoincrement())
+  title      String
+  author     String   @default("")
+  dynasty    String   @default("唐") // 年代：先秦/汉魏/唐/宋/元/明/清/近现代…
+  style      String   @default("未分类") // 风格：豪放/婉约/山水田园/边塞…
+  content    String // 诗文正文，换行分段
+  note       String   @default("") // 笺注/赏析
+  posterPath String? // 海报图（预留位）
+  comicPath  String? // 漫画图（预留位）
+  createdAt  DateTime @default(now())
+}
+
 model ComicPage {
   id        Int    @id @default(autoincrement())
   comicId   Int

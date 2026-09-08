@@ -67,13 +67,14 @@ function SectionHead({ eyebrow, title, more }: { eyebrow: string; title: string;
 }
 
 export default async function HomePage() {
-  const [bookCount, comicCount, postCount, gameCount] = await Promise.all([
+  const [bookCount, comicCount, postCount, gameCount, poemCount] = await Promise.all([
     db.book.count(),
     db.comic.count(),
     db.post.count({ where: { published: true } }),
     db.game.count(),
+    db.poem.count(),
   ]);
-  const [books, comics, posts, games] = await Promise.all([
+  const [books, comics, posts, games, poems] = await Promise.all([
     db.book.findMany({ orderBy: { createdAt: "desc" }, take: 8 }),
     db.comic.findMany({
       orderBy: { createdAt: "desc" },
@@ -82,11 +83,13 @@ export default async function HomePage() {
     }),
     db.post.findMany({ where: { published: true }, orderBy: { createdAt: "desc" }, take: 4 }),
     db.game.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 6 }),
+    db.poem.findMany({ orderBy: { createdAt: "desc" }, take: 3 }),
   ]);
 
   const stats = [
     { n: bookCount, label: "本藏书" },
     { n: comicCount, label: "部漫画" },
+    { n: poemCount, label: "首诗词" },
     { n: postCount, label: "篇随笔" },
     { n: gameCount, label: "个游戏" },
   ];
@@ -203,6 +206,34 @@ export default async function HomePage() {
                   <span className="font-serif text-base group-hover:text-lamp-2">
                     {p.title}
                   </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 诗词 */}
+        {poems.length > 0 && (
+          <section>
+            <SectionHead eyebrow="诗词" title="笺上新句" more="/poems" />
+            <div className="grid gap-4 sm:grid-cols-3">
+              {poems.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/poems/${p.id}`}
+                  className="group relative overflow-hidden rounded-lg border hairline bg-ink-2/60 px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-lamp/40"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="truncate font-serif text-base group-hover:text-lamp-2">
+                      {p.title}
+                    </p>
+                    <span className="shrink-0 text-xs text-fog">
+                      {p.dynasty} · {p.author || "佚名"}
+                    </span>
+                  </div>
+                  <p className="mt-2 line-clamp-1 font-serif text-sm text-paper/70">
+                    「{p.content.split("\n")[0]?.trim()}」
+                  </p>
                 </Link>
               ))}
             </div>

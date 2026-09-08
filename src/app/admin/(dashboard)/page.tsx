@@ -7,11 +7,12 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "后台" };
 
 export default async function AdminHomePage() {
-  const [bookCount, comicCount, postCount, games, books, posts] = await Promise.all([
+  const [bookCount, comicCount, postCount, games, poems, books, posts] = await Promise.all([
     db.book.count(),
     db.comic.count(),
     db.post.count(),
     db.game.count(),
+    db.poem.count(),
     db.book.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     db.post.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }),
   ]);
@@ -19,17 +20,18 @@ export default async function AdminHomePage() {
   const cards = [
     { label: "图书", href: "/admin/books" },
     { label: "漫画", href: "/admin/comics" },
+    { label: "诗词", href: "/admin/poems" },
     { label: "随笔", href: "/admin/posts" },
     { label: "游戏", href: "/admin/games" },
   ];
-  const counts = [bookCount, comicCount, postCount, games];
+  const counts = [bookCount, comicCount, poems, postCount, games];
 
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="font-serif text-2xl">书房盘点</h1>
       <p className="mt-1 text-sm text-fog">灯亮着，随时可以整理。</p>
 
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-5">
         {cards.map((c, i) => (
           <Link
             key={c.href}

@@ -181,7 +181,7 @@ export default function AdminComics() {
           {comics.map((c) => (
             <li key={c.id} className="flex items-center gap-4 bg-ink-2/40 p-4">
               {c.coverPath ? (
-                <img src={`/api/files/${c.coverPath}`} alt="" className="h-16 w-12 rounded object-cover" />
+                <img decoding="async" src={`/api/files/${c.coverPath}`} alt="" className="h-16 w-12 rounded object-cover" />
               ) : (
                 <div className="h-16 w-12 rounded bg-ink-3" />
               )}

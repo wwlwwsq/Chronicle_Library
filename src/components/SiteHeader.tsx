@@ -9,6 +9,7 @@ import ThemeSwitcher from "@/components/ThemeSwitcher";
 const NAV = [
   { href: "/books", label: "书架" },
   { href: "/comics", label: "画匣" },
+  { href: "/poems", label: "诗词" },
   { href: "/blog", label: "随笔" },
   { href: "/games", label: "游戏角" },
 ];

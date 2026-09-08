@@ -137,6 +137,7 @@ export default function ComicReader({
               key={pages[index].id}
               src={`/api/files/${pages[index].path}`}
               alt={`${title} 第 ${index + 1} 页`}
+              decoding="async"
               className="mx-auto h-full w-auto max-w-full object-contain"
               draggable={false}
             />
@@ -170,6 +171,7 @@ export default function ComicReader({
             <img
               src={`/api/files/${pages[index + 1].path}`}
               alt=""
+              decoding="async"
               className="hidden"
               aria-hidden
             />
@@ -191,6 +193,7 @@ export default function ComicReader({
                 src={`/api/files/${p.path}`}
                 alt={`${title} 第 ${i + 1} 页`}
                 loading={i < 2 ? "eager" : "lazy"}
+                decoding="async"
                 className="block w-full"
                 draggable={false}
               />
