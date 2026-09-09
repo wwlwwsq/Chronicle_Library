@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { authFetch, setToken } from "@/lib/api-base";
 
 const LINKS = [
   { href: "/admin", label: "仪表盘", icon: "🕯️" },
@@ -17,7 +18,8 @@ export default function AdminNav({ username }: { username: string }) {
   const pathname = usePathname();
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await authFetch("/api/auth/logout", { method: "POST" });
+    setToken(null);
     window.location.href = "/admin/login";
   };
 

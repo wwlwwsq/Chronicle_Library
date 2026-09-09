@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import BookmarkPanel, { type BookmarkView } from "./BookmarkPanel";
+import {
+  loadBookmarks,
+  newBookmarkId,
+  saveBookmarks,
+  type EpubBookmark,
+} from "@/lib/bookmarks";
+import { fileUrl } from "@/lib/api-base";
 
 type TocItem = { label: string; href: string; depth: number; spineIndex: number };
 /** epub.js navigation.toc 的最小结构（库自带类型不完整，只取用到字段） */
@@ -52,6 +60,11 @@ export default function EpubReader({
   const [failed, setFailed] = useState(false);
   const [curIndex, setCurIndex] = useState(-1);
   const [spineLen, setSpineLen] = useState(0);
+  // 书签：每本书独立（localStorage key 含 bookId），可命名/跳转/改名/删除
+  const [bookmarks, setBookmarks] = useState<EpubBookmark[]>([]);
+  const [showBookmarks, setShowBookmarks] = useState(false);
+  const [bmNotice, setBmNotice] = useState<string | null>(null);
+  const [bmHighlight, setBmHighlight] = useState<string | null>(null);
   // SSR 期间先按翻页渲染，挂载后从本地存储恢复偏好（避免水合不一致）
   const [mode, setMode] = useState<ReadMode>("paged");
   const storageKey = `mbw:book:${bookId}`;
@@ -61,6 +74,15 @@ export default function EpubReader({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时从 localStorage 恢复阅读偏好，SSR 无该 API
     if (localStorage.getItem(MODE_KEY) === "scroll") setMode("scroll");
   }, []);
+
+  useEffect(() => {
+    // 书签独立于进度：打开阅读器即恢复，与书籍文件下载是否成功无关。
+    // 运行时再校验位置字段：旧版本/手工改动留下的缺 cfi 条目会导致跳转异常
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 同上：挂载后恢复本地存储
+    setBookmarks(
+      loadBookmarks<EpubBookmark>(bookId).filter((b) => typeof b.cfi === "string")
+    );
+  }, [bookId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,7 +107,7 @@ export default function EpubReader({
       // pending，阅读器只会卡在"正在打开…"。所以先自己取文件并用 JSZip
       // 校验，拿到明确的失败原因；校验通过后把二进制直接交给 epubjs，
       // 也省去它内部再发一次请求。
-      const resp = await fetch(`/api/files/${filePath}`);
+      const resp = await fetch(fileUrl(filePath));
       if (!resp.ok) throw new Error("文件下载失败");
       const data = await resp.arrayBuffer();
       await JSZip.loadAsync(data);
@@ -226,6 +248,14 @@ export default function EpubReader({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 书签命名/改名输入框聚焦时，方向键留给文本编辑，不翻页
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        return;
+      }
+      // 目录/书签抽屉打开时视为模态：方向键不翻页，
+      // 否则书会在这个抽屉背后翻动，导致书签「默认名」与实际保存位置错位
+      if (showToc || showBookmarks) return;
       if (e.key === "ArrowLeft") renditionRef.current?.prev();
       if (e.key === "ArrowRight") renditionRef.current?.next();
       // 滚动模式下方向键即滚动一屏
@@ -236,7 +266,7 @@ export default function EpubReader({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode]);
+  }, [mode, showToc, showBookmarks]);
 
   const toggleMode = () => {
     setMode((m) => {
@@ -292,6 +322,97 @@ export default function EpubReader({
     setShowToc(false);
   };
 
+  // ---------- 书签 ----------
+  const bmTimer = useRef<number | undefined>(undefined);
+  const flashBmNotice = (msg: string, highlight?: string) => {
+    setBmNotice(msg);
+    setBmHighlight(highlight ?? null);
+    window.clearTimeout(bmTimer.current);
+    bmTimer.current = window.setTimeout(() => {
+      setBmNotice(null);
+      setBmHighlight(null);
+    }, 2400);
+  };
+  useEffect(() => () => window.clearTimeout(bmTimer.current), []);
+
+  // 新书签默认名：当前章节名；无目录的旧书回退为章节序号
+  const defaultBmName = useMemo(() => {
+    if (!ready) return "";
+    if (activeTocIdx >= 0 && toc[activeTocIdx]) return toc[activeTocIdx].label;
+    if (curIndex >= 0 && spineLen > 0) return `第 ${curIndex + 1} 章`;
+    return "";
+  }, [ready, activeTocIdx, toc, curIndex, spineLen]);
+
+  const commitBms = (next: EpubBookmark[]) => {
+    setBookmarks(next);
+    saveBookmarks(bookId, next);
+  };
+
+  const addBookmark = (name: string) => {
+    const rendition = renditionRef.current;
+    let cfi: string | undefined;
+    try {
+      // 切换翻页/滚动模式会销毁重建渲染实例，而 ready 状态不会复位：
+      // 窗口期内调用已销毁实例的 currentLocation() 可能直接抛错，必须兜底
+      cfi = rendition?.currentLocation()?.start?.cfi;
+    } catch {
+      cfi = undefined;
+    }
+    if (!cfi) {
+      flashBmNotice("阅读器尚未就绪，稍后再试");
+      return;
+    }
+    const dup = bookmarks.find((b) => b.cfi === cfi);
+    if (dup) {
+      flashBmNotice("这个位置已经有书签了", dup.id);
+      return;
+    }
+    const chapter =
+      activeTocIdx >= 0 && toc[activeTocIdx]
+        ? toc[activeTocIdx].label
+        : curIndex >= 0 && spineLen > 0
+          ? `第 ${curIndex + 1} 章`
+          : "";
+    commitBms([
+      ...bookmarks,
+      { id: newBookmarkId(), name: name.slice(0, 60), cfi, chapter, createdAt: Date.now() },
+    ]);
+  };
+
+  const jumpBookmark = async (id: string) => {
+    const rendition = renditionRef.current;
+    const bm = bookmarks.find((b) => b.id === id);
+    if (!rendition || !bm) return;
+    try {
+      await rendition.display(bm.cfi);
+      setShowBookmarks(false);
+    } catch {
+      // 书籍文件被替换后旧 CFI 失效
+      flashBmNotice("这个书签的位置已失效，可删除后重新收藏");
+    }
+  };
+
+  const renameBookmark = (id: string, name: string) => {
+    commitBms(
+      bookmarks.map((b) =>
+        b.id === id ? { ...b, name: name.slice(0, 60) || b.name } : b
+      )
+    );
+  };
+
+  const deleteBookmark = (id: string) => {
+    commitBms(bookmarks.filter((b) => b.id !== id));
+  };
+
+  // 最新收藏的排最前
+  const bmView: BookmarkView[] = useMemo(
+    () =>
+      [...bookmarks]
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map((b) => ({ id: b.id, name: b.name, sub: b.chapter || undefined })),
+    [bookmarks]
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-reader-bg">
       {/* 顶栏 */}
@@ -332,10 +453,34 @@ export default function EpubReader({
           </button>
           <button
             type="button"
-            onClick={() => setShowToc(true)}
+            onClick={() => {
+              setShowBookmarks(false);
+              setShowToc(true);
+            }}
             className="rounded-md px-2.5 py-1.5 text-sm text-fog hover:text-paper"
           >
             目录
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowToc(false);
+              setShowBookmarks((v) => !v);
+            }}
+            className={
+              "relative rounded-md px-2.5 py-1.5 text-sm transition-colors " +
+              (showBookmarks
+                ? "text-lamp-2"
+                : "text-fog hover:text-paper")
+            }
+            title="书签"
+          >
+            书签
+            {bookmarks.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 rounded-full bg-lamp px-1 font-mono text-[10px] leading-4 text-on-accent">
+                {bookmarks.length}
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -443,6 +588,21 @@ export default function EpubReader({
           </nav>
         </div>
       )}
+
+      {/* 书签抽屉 */}
+      <BookmarkPanel
+        open={showBookmarks}
+        onClose={() => setShowBookmarks(false)}
+        items={bmView}
+        canAdd={ready}
+        defaultName={defaultBmName}
+        notice={bmNotice}
+        highlightId={bmHighlight}
+        onAdd={addBookmark}
+        onJump={jumpBookmark}
+        onRename={renameBookmark}
+        onDelete={deleteBookmark}
+      />
     </div>
   );
 }

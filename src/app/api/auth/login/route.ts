@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import { setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, createSessionToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,8 +15,11 @@ export async function POST(req: NextRequest) {
     if (!admin || !bcrypt.compareSync(password, admin.passwordHash)) {
       return NextResponse.json({ error: "用户名或密码不正确" }, { status: 401 });
     }
-    await setSessionCookie({ uid: admin.id, username: admin.username });
-    return NextResponse.json({ ok: true });
+    const payload = { uid: admin.id, username: admin.username };
+    await setSessionCookie(payload);
+    // 同时返回 token：桌面应用等跨域客户端用它走 Authorization: Bearer
+    const token = await createSessionToken(payload);
+    return NextResponse.json({ ok: true, token });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "登录失败，请稍后再试" }, { status: 500 });

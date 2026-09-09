@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fileUrl } from "@/lib/api-base";
 
 export type ComicPageItem = { id: number; pageIndex: number; path: string };
 
@@ -135,7 +136,7 @@ export default function ComicReader({
           {pages[index] && (
             <img
               key={pages[index].id}
-              src={`/api/files/${pages[index].path}`}
+              src={fileUrl(pages[index].path)}
               alt={`${title} 第 ${index + 1} 页`}
               decoding="async"
               className="mx-auto h-full w-auto max-w-full object-contain"
@@ -169,7 +170,7 @@ export default function ComicReader({
           {/* 预加载下一页 */}
           {pages[index + 1] && (
             <img
-              src={`/api/files/${pages[index + 1].path}`}
+              src={fileUrl(pages[index + 1].path)}
               alt=""
               decoding="async"
               className="hidden"
@@ -190,7 +191,7 @@ export default function ComicReader({
                 ref={(el) => {
                   imgRefs.current[i] = el;
                 }}
-                src={`/api/files/${p.path}`}
+                src={fileUrl(p.path)}
                 alt={`${title} 第 ${i + 1} 页`}
                 loading={i < 2 ? "eager" : "lazy"}
                 decoding="async"

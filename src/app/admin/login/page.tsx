@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { site } from "@/lib/site";
+import { apiUrl, setToken, getToken, authFetch } from "@/lib/api-base";
 
 export default function AdminLoginPage() {
   const [username, setUsername] = useState("");
@@ -9,18 +10,29 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 已登录（token 或 cookie 会话有效）直接进后台
+  useEffect(() => {
+    if (!getToken()) return;
+    authFetch("/api/auth/me").then((r) => {
+      if (r.ok) window.location.replace("/admin");
+    }).catch(() => {});
+  }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "登录失败");
+      // 登录成功保存 token：桌面模式（跨域）后续请求走 Authorization: Bearer
+      if (data.token) setToken(data.token);
       const next = new URLSearchParams(window.location.search).get("next");
       window.location.href = next && next.startsWith("/admin") ? next : "/admin";
     } catch (err) {

@@ -1,30 +1,21 @@
-import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { toId } from "@/lib/api";
-import EpubReader from "@/components/readers/EpubReader";
-import TxtReader from "@/components/readers/TxtReader";
+import { Suspense } from "react";
+import ReaderClient from "./reader-client";
 
-export const dynamic = "force-dynamic";
+export const metadata = { title: "阅读" };
 
-type Props = { params: Promise<{ id: string }> };
-
-export async function generateMetadata({ params }: Props) {
-  const { id } = await params;
-  const bookId = toId(id);
-  if (!bookId) return { title: "图书" };
-  const book = await db.book.findUnique({ where: { id: bookId } });
-  return { title: book ? `《${book.title}》` : "图书" };
+/**
+ * 桌面静态导出（output: "export"）要求每个动态路由至少生成一个页面。
+ * 数据全部由客户端 fetch——构建期只生成一个占位页（books/app.html），
+ * 运行时任意 /books/:id 由桌面壳回落到该占位页，客户端按真实 URL 渲染。
+ */
+export function generateStaticParams() {
+  return [{ id: "app" }];
 }
 
-export default async function BookReaderPage({ params }: Props) {
-  const bookId = toId((await params).id);
-  if (!bookId) notFound();
-  const book = await db.book.findUnique({ where: { id: bookId } });
-  if (!book) notFound();
-
-  return book.format === "epub" ? (
-    <EpubReader bookId={book.id} title={book.title} filePath={book.filePath} />
-  ) : (
-    <TxtReader bookId={book.id} title={book.title} filePath={book.filePath} />
+export default function BookReaderPage() {
+  return (
+    <Suspense>
+      <ReaderClient />
+    </Suspense>
   );
 }

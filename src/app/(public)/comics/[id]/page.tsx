@@ -1,34 +1,21 @@
-import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { toId } from "@/lib/api";
-import ComicReader from "@/components/readers/ComicReader";
+import { Suspense } from "react";
+import ReaderClient from "./reader-client";
 
-export const dynamic = "force-dynamic";
+export const metadata = { title: "漫画" };
 
-type Props = { params: Promise<{ id: string }> };
-
-export async function generateMetadata({ params }: Props) {
-  const { id } = await params;
-  const comicId = toId(id);
-  if (!comicId) return { title: "漫画" };
-  const comic = await db.comic.findUnique({ where: { id: comicId } });
-  return { title: comic ? `《${comic.title}》` : "漫画" };
+/**
+ * 桌面静态导出（output: "export"）要求每个动态路由至少生成一个页面。
+ * 数据全部由客户端 fetch——构建期只生成一个占位页（comics/app.html），
+ * 运行时任意 /comics/:id 由桌面壳回落到该占位页，客户端按真实 URL 渲染。
+ */
+export function generateStaticParams() {
+  return [{ id: "app" }];
 }
 
-export default async function ComicReaderPage({ params }: Props) {
-  const comicId = toId((await params).id);
-  if (!comicId) notFound();
-  const comic = await db.comic.findUnique({
-    where: { id: comicId },
-    include: { pages: { orderBy: { pageIndex: "asc" } } },
-  });
-  if (!comic) notFound();
-
+export default function ComicReaderPage() {
   return (
-    <ComicReader
-      comicId={comic.id}
-      title={comic.title}
-      pages={comic.pages.map((p) => ({ id: p.id, pageIndex: p.pageIndex, path: p.path }))}
-    />
+    <Suspense>
+      <ReaderClient />
+    </Suspense>
   );
 }

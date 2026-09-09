@@ -5,14 +5,19 @@ import { jsonError, serverError, toId } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
 
+/** 公开读取：数字 id 或 slug 均可；未发布草稿仅管理员可见（404 兜底，不泄露存在性） */
 export async function GET(_req: NextRequest, { params }: Params) {
-  const session = await requireAdmin();
-  if (!session) return jsonError("请先登录后台", 401);
   try {
-    const id = toId((await params).id);
-    if (!id) return jsonError("文章不存在", 404);
-    const post = await db.post.findUnique({ where: { id } });
+    const seg = decodeURIComponent((await params).id);
+    const id = toId(seg);
+    const post = id
+      ? await db.post.findUnique({ where: { id } })
+      : await db.post.findUnique({ where: { slug: seg } });
     if (!post) return jsonError("文章不存在", 404);
+    if (!post.published) {
+      const session = await requireAdmin();
+      if (!session) return jsonError("文章不存在", 404);
+    }
     return NextResponse.json(post);
   } catch (err) {
     return serverError(err);

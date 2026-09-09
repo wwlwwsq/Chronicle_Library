@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { fileUrl } from "@/lib/api-base";
 
 /** 封面图：有封面用封面，没有就生成一张竖排书名的“素书皮” */
 export function Cover({
@@ -14,7 +15,7 @@ export function Cover({
 }) {
   const inner = coverPath ? (
     <img
-      src={`/api/files/${coverPath}`}
+      src={fileUrl(coverPath)}
       alt={`《${title}》封面`}
       loading="lazy"
       decoding="async"

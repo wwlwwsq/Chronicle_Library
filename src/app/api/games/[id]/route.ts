@@ -5,6 +5,19 @@ import { jsonError, serverError, toId } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
 
+/** 公开读取单个游戏（外部游戏 iframe 页用） */
+export async function GET(_req: NextRequest, { params }: Params) {
+  try {
+    const id = toId((await params).id);
+    if (!id) return jsonError("游戏不存在", 404);
+    const game = await db.game.findUnique({ where: { id } });
+    if (!game) return jsonError("游戏不存在", 404);
+    return NextResponse.json(game);
+  } catch (err) {
+    return serverError(err);
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: Params) {
   const session = await requireAdmin();
   if (!session) return jsonError("请先登录后台", 401);

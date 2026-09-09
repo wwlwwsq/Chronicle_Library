@@ -1,0 +1,16 @@
+[package]
+name = "mybook"
+version = "0.1.0"
+description = "我的书房 - 桌面客户端（Tauri 2 可选方案）"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

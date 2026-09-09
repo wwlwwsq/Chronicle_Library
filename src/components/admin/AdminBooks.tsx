@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, btnGhost, btnPrimary, inputCls, labelCls } from "./ui";
+import { fileUrl } from "@/lib/api-base";
 
 type Book = {
   id: number;
@@ -186,7 +187,7 @@ export default function AdminBooks() {
           {books.map((b) => (
             <li key={b.id} className="flex items-center gap-4 bg-ink-2/40 p-4">
               {b.coverPath ? (
-                <img decoding="async" src={`/api/files/${b.coverPath}`} alt="" className="h-16 w-12 rounded object-cover" />
+                <img decoding="async" src={fileUrl(b.coverPath)} alt="" className="h-16 w-12 rounded object-cover" />
               ) : (
                 <div className="flex h-16 w-12 items-center justify-center rounded bg-ink-3">
                   <span className="spine-text text-[10px] text-fog line-clamp-2">{b.title.slice(0, 4)}</span>

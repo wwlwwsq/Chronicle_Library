@@ -94,7 +94,48 @@ tar czf mybook-backup-$(date +%F).tar.gz data/
 
 ---
 
-## 目录结构
+## 桌面应用（Electron / Tauri）
+
+项目支持双模式构建：默认 `next build` 是服务器模式（standalone，行为不变）；
+`BUILD_STATIC=1` 时静态导出整个前端到 `out/`，交给桌面壳加载，服务器只跑后端 API。
+
+### 1. 构建静态前端
+
+```bash
+# 指向你的服务器 API（桌面模式管理端用 Bearer token，HTTP 也可用）
+DESKTOP_API_URL=https://你的域名 npm run build:desktop
+```
+
+### 2. 用 Electron 运行
+
+```bash
+npm run desktop        # Electron 壳加载 out/，内置 SPA fallback
+```
+
+壳的说明（`desktop/main.cjs`）：随机端口起本地静态服务；动态路由
+（`/books/9` 等）回落到构建期生成的占位页 `app.html`，hydrate 后按真实
+URL 客户端渲染；外部链接交给系统浏览器。
+
+### 3. 打安装包（可选，Tauri 2）
+
+`src-tauri/` 已备好配置（包体 5–10MB，需 Rust 工具链）：
+
+```bash
+npx @tauri-apps/cli icon path/to/icon-1024.png   # 先生成图标
+npx @tauri-apps/cli build                         # 产出 NSIS 安装包
+```
+
+### 桌面模式与网页模式的差异
+
+- 登录：桌面模式把 JWT 存 localStorage 并以 `Authorization: Bearer` 携带
+  （服务器两种凭据都认）；网页模式走同源 cookie，行为不变
+- 阅读进度、书签仍存本地（localStorage），不跨设备同步
+- 服务器需允许桌面壳的跨域请求（`proxy.ts` 已内置 CORS：
+  credentials + Authorization 头）
+
+---
+
+
 
 ```
 ├─ prisma/                # 数据模型与迁移
