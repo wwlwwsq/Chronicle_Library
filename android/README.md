@@ -25,6 +25,20 @@ gradle assembleRelease        # 产物：app/build/outputs/apk/release/app-relea
 
 本机没有全局 gradle 时，可用 `~/.gradle/wrapper/dists/gradle-9.5.1-bin/*/gradle-9.5.1/bin/gradle`。
 
+## 自测（无需手机/模拟器）
+
+`selftest/ServeSelfTest.java` 与 APK 跑同一份 WebServer.java + 同一个 NanoHTTPD jar，
+在桌面 JVM 上实测静态托管、SPA 回退、API 反代、请求体转发、Set-Cookie 透传等：
+
+```bash
+# 编译（WebServer 已与 android.* 解耦，可直接用 javac）
+javac -encoding UTF-8 -cp nanohttpd-2.3.1.jar -d selftest/out \
+  app/src/main/java/com/mybook/android/WebServer.java selftest/ServeSelfTest.java
+# 运行（第一个参数是 assets 根目录；后端用例直连真实服务器）
+java -cp "selftest/out;nanohttpd-2.3.1.jar" ServeSelfTest \
+  app/src/main/assets http://后端地址:端口 用户名 密码
+```
+
 ## 关键配置
 
 - **后端地址**：`app/build.gradle.kts` 里的 `buildConfigField("String", "API_BASE", ...)`。

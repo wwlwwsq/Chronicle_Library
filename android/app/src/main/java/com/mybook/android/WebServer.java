@@ -1,7 +1,5 @@
 package com.mybook.android;
 
-import android.content.res.AssetManager;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
@@ -23,17 +21,25 @@ import fi.iki.elonen.NanoHTTPD;
  * - /api/* 原样转发到远端后端（请求头/请求体/响应体流式透传，不整块缓冲），
  *   因此前端始终以同源相对路径访问 API，凭据走 cookie（WebView 按 127.0.0.1 存储）+
  *   Bearer（localStorage token）双通道。
+ *
+ * 资源读取抽象为 {@link AssetOpener}（不直接依赖 android AssetManager），
+ * 使本类可在桌面 JVM 上编译并自测（见 selftest/ServeSelfTest.java）。
  */
 public class WebServer extends NanoHTTPD {
 
+    /** 按相对路径打开只读流；实现方为 AssetManager::open 或测试的文件系统。 */
+    public interface AssetOpener {
+        InputStream open(String path) throws IOException;
+    }
+
     private static final String WEB_ROOT = "web";
 
-    private final AssetManager assets;
+    private final AssetOpener opener;
     private final String apiBase;
 
-    public WebServer(AssetManager assets, String apiBase) {
+    public WebServer(AssetOpener opener, String apiBase) {
         super("127.0.0.1", 0); // 随机可用端口，避免与用户已开服务冲突
-        this.assets = assets;
+        this.opener = opener;
         this.apiBase = apiBase == null || apiBase.isEmpty()
                 ? "http://127.0.0.1:1"
                 : apiBase.replaceAll("/+$", "");
@@ -57,10 +63,12 @@ public class WebServer extends NanoHTTPD {
         String rel = WEB_ROOT + (uri.equals("/") ? "/index.html" : uri);
         byte[] body = readAsset(rel);
         if (body == null && !rel.substring(rel.lastIndexOf('/') + 1).contains(".")) {
-            body = readAsset(WEB_ROOT + "/index.html"); // SPA 客户端路由回退
+            rel = WEB_ROOT + "/index.html"; // SPA 客户端路由回退，MIME 按实际回退文件算
+            body = readAsset(rel);
         }
         if (body == null) {
-            body = readAsset(WEB_ROOT + "/404.html");
+            rel = WEB_ROOT + "/404.html";
+            body = readAsset(rel);
         }
         if (body == null) {
             return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "404");
@@ -70,7 +78,7 @@ public class WebServer extends NanoHTTPD {
     }
 
     private byte[] readAsset(String path) {
-        try (InputStream in = assets.open(path); ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024)) {
+        try (InputStream in = opener.open(path); ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024)) {
             pipe(in, out);
             return out.toByteArray();
         } catch (IOException e) {
@@ -95,32 +103,53 @@ public class WebServer extends NanoHTTPD {
             conn.setConnectTimeout(10_000);
             conn.setReadTimeout(120_000);
             copyRequestHeaders(session, conn);
+            // 强制短连接：后端(Node) keep-alive 超时仅 5s，复用池中旧连接发 POST 会
+            // "Read timed out"（非幂等请求 HttpURLConnection 不自动重试），故逐请求新建
+            conn.setRequestProperty("Connection", "close");
 
             Method m = session.getMethod();
             boolean hasBody = m == Method.POST || m == Method.PUT
                     || m == Method.PATCH || m == Method.DELETE;
             if (hasBody) {
-                conn.setDoOutput(true);
                 String cl = session.getHeaders().get("content-length");
+                long len = -1;
                 if (cl != null) {
                     try {
-                        conn.setFixedLengthStreamingMode(Long.parseLong(cl));
-                    } catch (NumberFormatException nfe) {
-                        conn.setChunkedStreamingMode(16 * 1024);
+                        len = Long.parseLong(cl.trim());
+                    } catch (NumberFormatException ignored) {
                     }
-                } else {
-                    conn.setChunkedStreamingMode(16 * 1024);
                 }
+                // 请求体由 Content-Length 定界，只能精确转发 len 字节——读到 EOF 是错的
+                //（连接在等响应，EOF 永远不会来，只会熬到 soTimeout 断线）
+                if (len < 0) {
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST,
+                            "application/json; charset=utf-8",
+                            "{\"error\":\"缺少或非法的 Content-Length（代理不接受 chunked 请求体）\"}");
+                }
+                conn.setDoOutput(true);
+                conn.setFixedLengthStreamingMode(len);
                 try (OutputStream out = conn.getOutputStream()) {
-                    pipe(session.getInputStream(), out);
+                    long bytes = pipeN(session.getInputStream(), out, len);
+                    if (bytes < len) {
+                        throw new IOException("请求体未完整接收（" + bytes + "/" + len + "）");
+                    }
+                } catch (IOException e) {
+                    throw new IOException("请求体转发阶段失败：" + describe(e), e);
                 }
             }
 
-            int code = conn.getResponseCode();
+            int code;
+            try {
+                code = conn.getResponseCode();
+            } catch (IOException e) {
+                throw new IOException("等待后端响应阶段失败：" + describe(e), e);
+            }
             InputStream raw = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
             if (raw == null) {
                 raw = new ByteArrayInputStream(new byte[0]);
             }
+            // 注意：HttpURLConnection 已自动解码 chunked 传输编码，raw 就是纯正文；
+            // 后端无 Content-Length 时（total=-1）直接以 chunked 重新封帧透传即可
             // NanoHTTPD 发送完成后会 close 该流；在其 close 时一并断开底层连接
             InputStream body = new FilterInputStream(raw) {
                 @Override
@@ -129,13 +158,25 @@ public class WebServer extends NanoHTTPD {
                     conn.disconnect();
                 }
             };
-            Response r = newFixedLengthResponse(statusOf(code), contentType(conn), body,
-                    conn.getContentLengthLong());
+            long total = conn.getContentLengthLong();
+            Response r = total >= 0
+                    ? newFixedLengthResponse(statusOf(code), contentType(conn), body, total)
+                    : newChunkedResponse(statusOf(code), contentType(conn), body);
             copyResponseHeaders(conn, r);
             return r;
         } catch (IOException e) {
-            return jsonError("无法连接后端服务器（" + apiBase + "）：" + e.getMessage());
+            return jsonError("代理请求失败（目标 " + apiBase + "）：" + describe(e));
         }
+    }
+
+    /** 异常类名 + 堆栈前几帧：前端错误提示可直接定位是哪一步、哪个方向超时。 */
+    private static String describe(IOException e) {
+        StringBuilder msg = new StringBuilder(e.getClass().getSimpleName()).append(": ").append(e.getMessage());
+        StackTraceElement[] st = e.getStackTrace();
+        for (int i = 0; i < Math.min(4, st.length); i++) {
+            msg.append("\n  at ").append(st[i]);
+        }
+        return msg.toString();
     }
 
     private void copyRequestHeaders(IHTTPSession session, HttpURLConnection conn) {
@@ -219,6 +260,21 @@ public class WebServer extends NanoHTTPD {
         while ((n = in.read(buf)) != -1) {
             out.write(buf, 0, n);
         }
+    }
+
+    /** 精确转发 len 字节（请求体按 Content-Length 定界），返回实际转发数。 */
+    private static long pipeN(InputStream in, OutputStream out, long len) throws IOException {
+        byte[] buf = new byte[64 * 1024];
+        long total = 0;
+        while (total < len) {
+            int n = in.read(buf, 0, (int) Math.min(buf.length, len - total));
+            if (n == -1) {
+                break;
+            }
+            out.write(buf, 0, n);
+            total += n;
+        }
+        return total;
     }
 
     private static String mimeOf(String path) {
