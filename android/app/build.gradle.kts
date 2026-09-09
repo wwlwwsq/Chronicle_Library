@@ -10,8 +10,8 @@ android {
         applicationId = "com.mybook.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "2.0.0"
+        versionCode = 2
+        versionName = "2.0.1"
         // 桌面/移动壳统一走「内嵌服务器 + /api 反代」，前端始终同源相对路径访问 API。
         // 这里只配置代理目标；后端迁移时改这一行重打包即可（无需重新构建静态站点）。
         buildConfigField("String", "API_BASE", "\"http://47.115.213.132:3100\"")
@@ -49,13 +49,7 @@ android {
 }
 
 dependencies {
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    // 轻量内嵌 HTTP 服务器，承载静态站点与 /api 代理（对应桌面壳里手写的 node http server）
+    // 轻量内嵌 HTTP 服务器，承载静态站点与 /api 代理（对应桌面壳里手写的 node http server）。
+    // 刻意不引入 androidx/appcompat：纯原生 Activity，无主题兼容约束，闪退面更小。
     implementation("org.nanohttpd:nanohttpd:2.3.1")
-    constraints {
-        // kotlin-stdlib 1.8 起已并入 jdk7/jdk8 分包内容，androidx 各库带入的新旧分包会类重复，统一到 1.8.22
-        implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.22")
-        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22")
-        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")
-    }
 }
