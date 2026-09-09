@@ -29,6 +29,7 @@ public class ServeSelfTest {
     static final List<String> failed = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
+        boolean holdOnly = args.length > 4 && "hold".equals(args[4]);
         Path assets = Path.of(args[0]);
         String apiBase = args.length > 1 ? args[1] : "";
         String user = args.length > 2 ? args[2] : null;
@@ -37,6 +38,14 @@ public class ServeSelfTest {
         WebServer server = new WebServer(p -> Files.newInputStream(assets.resolve(p)), apiBase);
         server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
         String base = "http://127.0.0.1:" + server.getListeningPort();
+        if (holdOnly) {
+            // hold 模式：跳过用例，把端口写盘供外部读取后保持运行
+            java.nio.file.Path portFile = Path.of(System.getProperty("java.io.tmpdir"), "mybook-selftest-port.txt");
+            java.nio.file.Files.writeString(portFile, String.valueOf(server.getListeningPort()));
+            System.out.println("[hold] 服务器保持运行: " + base + "  portFile=" + portFile);
+            System.out.flush();
+            Thread.sleep(Long.MAX_VALUE);
+        }
         HttpClient http = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build();
         System.out.println("self-test server: " + base + "  assets=" + assets.toAbsolutePath());
         System.out.flush();
@@ -115,6 +124,13 @@ public class ServeSelfTest {
         server.stop();
         System.out.println("\n==== 结果: " + passed + " 通过, " + failed.size() + " 失败 ====");
         failed.forEach(f -> System.out.println("FAIL " + f));
+        System.out.flush();
+        // 附加参数 hold：跑完用例不退出，保持服务器运行供浏览器人工/自动化检查
+        if (args.length > 4 && "hold".equals(args[4])) {
+            System.out.println("[hold] 服务器保持运行: " + base);
+            System.out.flush();
+            Thread.sleep(Long.MAX_VALUE);
+        }
         if (!failed.isEmpty()) {
             System.exit(1);
         }

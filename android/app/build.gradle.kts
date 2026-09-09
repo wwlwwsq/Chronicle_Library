@@ -10,8 +10,8 @@ android {
         applicationId = "com.mybook.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.0.3"
+        versionCode = 5
+        versionName = "2.0.4"
         // 桌面/移动壳统一走「内嵌服务器 + /api 反代」，前端始终同源相对路径访问 API。
         // 这里只配置代理目标；后端迁移时改这一行重打包即可（无需重新构建静态站点）。
         buildConfigField("String", "API_BASE", "\"http://47.115.213.132:3100\"")

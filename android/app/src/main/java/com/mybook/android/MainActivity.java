@@ -9,9 +9,12 @@ import android.content.ClipboardManager;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.ConsoleMessage;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -63,8 +66,33 @@ public class MainActivity extends Activity {
                 }
                 return true;
             }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request,
+                    WebResourceError error) {
+                if (!request.isForMainFrame()) {
+                    WebLog.log(MainActivity.this,
+                            "ERR " + request.getUrl() + " : " + error.getDescription());
+                }
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request,
+                    WebResourceResponse errorResponse) {
+                if (!request.isForMainFrame()) {
+                    WebLog.log(MainActivity.this, "HTTP " + errorResponse.getStatusCode()
+                            + " " + request.getUrl() + " mime=" + errorResponse.getMimeType());
+                }
+            }
         });
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                WebLog.log(MainActivity.this, "CONSOLE " + m.sourceId() + ":" + m.lineNumber()
+                        + " " + m.message());
+                return true;
+            }
+
             @Override
             public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback,
                     FileChooserParams params) {
@@ -124,26 +152,39 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    /** 上次闪退的堆栈在启动时弹窗展示，可一键复制发给开发者。 */
+    /** 上次闪退堆栈与 WebView 诊断日志在启动时弹窗展示，可一键复制发给开发者。 */
     private void showLastCrashIfAny() {
-        File f = CrashGuard.crashFile(this);
-        if (!f.exists()) {
+        StringBuilder sb = new StringBuilder();
+        File crash = CrashGuard.crashFile(this);
+        if (crash.exists()) {
+            String c = readPrivateFile(crash);
+            //noinspection ResultOfMethodCallIgnored
+            crash.delete();
+            if (c != null && !c.isEmpty()) {
+                sb.append("== 闪退堆栈 ==\n").append(c).append("\n");
+            }
+        }
+        File weblog = WebLog.file(this);
+        if (weblog.exists()) {
+            String w = readPrivateFile(weblog);
+            //noinspection ResultOfMethodCallIgnored
+            weblog.delete();
+            if (w != null && !w.isEmpty()) {
+                sb.append("== WebView 日志 ==\n").append(w);
+            }
+        }
+        if (sb.length() == 0) {
             return;
         }
-        String content = readPrivateFile(f);
-        //noinspection ResultOfMethodCallIgnored
-        f.delete();
-        if (content == null || content.isEmpty()) {
-            return;
-        }
+        String content = sb.toString();
         String shown = content.length() > 4000 ? content.substring(0, 4000) + "\n…" : content;
         new AlertDialog.Builder(this)
-                .setTitle("上次异常退出")
+                .setTitle("上次运行的诊断日志")
                 .setMessage(shown)
                 .setPositiveButton("复制日志", (d, w) -> {
                     ClipboardManager cm = getSystemService(ClipboardManager.class);
                     if (cm != null) {
-                        cm.setPrimaryClip(ClipData.newPlainText("mybook-crash", content));
+                        cm.setPrimaryClip(ClipData.newPlainText("mybook-diag", content));
                         Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
                     }
                 })
