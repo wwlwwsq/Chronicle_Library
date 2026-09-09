@@ -1,0 +1,8 @@
+.gradle/
+build/
+local.properties
+app/build/
+# 静态导出产物：由仓库根目录构建生成后拷入，不入库
+app/src/main/assets/web/
+*.apk
+*.aab
