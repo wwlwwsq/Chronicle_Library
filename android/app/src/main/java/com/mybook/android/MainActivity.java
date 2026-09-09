@@ -82,7 +82,9 @@ public class MainActivity extends Activity {
 
         server = new WebServer(getAssets(), BuildConfig.API_BASE);
         try {
-            server.start(50, false);
+            // 注意：start 的第一个参数是「已接受连接的 soTimeout（毫秒）」而非端口；
+            // 端口在 WebServer 构造器里固定传 0（随机）。之前误传 50 导致手机上一读超时就断连。
+            server.start(15000, false);
         } catch (IOException e) {
             Toast.makeText(this, "本地服务启动失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
             finish();
